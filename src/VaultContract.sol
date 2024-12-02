@@ -14,7 +14,7 @@ interface IPlugin {
 }
 
 interface IGauge {
-    function getReward(address account) external;  // Function to claim rewards (oBERO)
+    function getReward(address account) external; // Function to claim rewards (oBERO)
 }
 
 interface IKodiakRouter {
@@ -42,7 +42,7 @@ interface ISwapRouter {
         uint160 sqrtPriceLimitX96;
     }
 
-    function exactInputSingle(ExactInputSingleParams calldata params)
+ function exactInputSingle(ExactInputSingleParams calldata params)
         external
         payable
         returns (uint256 amountOut);
@@ -66,8 +66,8 @@ contract VaultContract is Ownable, ReentrancyGuard {
         IERC20 _honeyToken,
         IPlugin _plugin,
         IGauge _gauge,
-        ISwapRouter _swapRouter,
-        IKodiakRouter _router
+        ISwapRouter _swapRouter
+        // IKodiakRouter _router
     ) Ownable(msg.sender) {
         islandToken = _islandToken;
         oBEROToken = _oBEROToken;
@@ -76,8 +76,7 @@ contract VaultContract is Ownable, ReentrancyGuard {
         plugin = _plugin;
         gauge = _gauge;
         swapRouter = _swapRouter;
-        router = _router;
-
+        // router = _router;
         // Approve Plugin for staking
         _islandToken.approve(address(_plugin), type(uint256).max);
     }
@@ -85,7 +84,7 @@ contract VaultContract is Ownable, ReentrancyGuard {
     /**
      * @dev Deposit an amount into the vault.
      * @param amount The amount of Island token (Honey-Nect LP Token) to deposit.
-     */
+     */    
     function deposit(uint256 amount) external nonReentrant {
         require(amount > 0, "Amount must be greater than 0");
         islandToken.transferFrom(msg.sender, address(this), amount);
@@ -95,7 +94,7 @@ contract VaultContract is Ownable, ReentrancyGuard {
     /**
      * @dev Harvest rewards by claiming oBERO from the Gauge contract.
      */
-    function harvestRewards() public nonReentrant onlyOwner {
+    function harvestRewards() public onlyOwner {
         // Claim rewards (oBERO)
         gauge.getReward(address(this));
         uint256 rewardBalance = oBEROToken.balanceOf(address(this));
@@ -136,59 +135,24 @@ contract VaultContract is Ownable, ReentrancyGuard {
     /**
      * @dev Swap half of the harvested oBERO tokens for NECT.
      */
-    function swapOBEROForNect(uint256 amount, uint256 beraAmount) public payable onlyOwner returns (uint256 nectReceived) {
-        nectReceived = swapTokens(address(oBEROToken), address(nectToken), amount, 3000); // 0.3% fee
+    function swapOBEROForNect(uint256 amount) public onlyOwner returns (uint256) {
+        return swapTokens(address(oBEROToken), address(nectToken), amount, 3000);
     }
 
     /**
      * @dev Swap the remaining harvested oBERO tokens for HONEY.
      */
-    function swapOBEROForHoney(uint256 amount, uint256 beraAmount) public payable onlyOwner returns (uint256 honeyReceived) {
-        honeyReceived = swapTokens(address(oBEROToken), address(honeyToken), amount, 3000); // 0.3% fee
+    function swapOBEROForHoney(uint256 amount) public onlyOwner returns (uint256) {
+        return swapTokens(address(oBEROToken), address(honeyToken), amount, 3000);
     }
 
-    /**
-     * @dev Add liquidity to the NECT/HONEY pool using Kodiak Router.
-     */
-    // function addLiquidityToPool(uint256 nectAmount, uint256 honeyAmount) public nonReentrant onlyOwner returns (uint256 lpTokensReceived) {
-    //     nectToken.approve(address(router), nectAmount);
-    //     honeyToken.approve(address(router), honeyAmount);
-    //     (,, lpTokensReceived) = router.addLiquidity(
-    //         address(nectToken),
-    //         address(honeyToken),
-    //         nectAmount,
-    //         honeyAmount,
-    //         0,
-    //         0,
-    //         address(this),
-    //         block.timestamp
-    //     );
-    //     return lpTokensReceived;
-    // }
-
-    /**
-     * @dev Deposit the LP tokens back into the Plugin contract (Beradrome farm).
-     */
-    // function depositLPtokensToPlugin(uint256 lpAmount) public nonReentrant onlyOwner {
-    //     require(lpAmount > 0, "Amount must be greater than 0");
-    //     plugin.depositFor(address(this), lpAmount);
-    // }
-
-    /**
-     * @dev Complete harvest and compound process by calling each step.
-     */
-    function harvestAndCompound(uint256 beraForNect, uint256 beraForHoney) external payable nonReentrant onlyOwner {
-        // Step 1: Harvest rewards
+    function harvestAndCompound(uint256 beraForNect, uint256 beraForHoney) external payable onlyOwner {
         harvestRewards();
 
         uint256 rewardBalance = oBEROToken.balanceOf(address(this));
         uint256 halfReward = rewardBalance / 2;
 
-        // Step 2: Swap half of oBERO for NECT
-        uint256 nectReceived = swapOBEROForNect(halfReward,beraForNect);
-
-        // Step 3: Swap the remaining oBERO for HONEY
-        uint256 honeyReceived = swapOBEROForHoney(rewardBalance - halfReward,beraForHoney);
-
+        swapOBEROForNect(halfReward);
+        swapOBEROForHoney(rewardBalance - halfReward);
     }
 }
